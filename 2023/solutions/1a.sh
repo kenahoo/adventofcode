@@ -1,0 +1,1 @@
+perl -pe 's/.*?(\d).*(\d).*/$1$2/ or s/.*?(\d).*/$1$1/' data/1a | paste -sd+ - | bc
