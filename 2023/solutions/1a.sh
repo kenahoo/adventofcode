@@ -1,1 +1,1 @@
-perl -pe 's/.*?(\d).*(\d).*/$1$2/ or s/.*?(\d).*/$1$1/' data/1a | paste -sd+ - | bc
+perl -nle '@x=m/(\d)/g; $t+="$x[0]$x[-1]"; END{print $t}' data/1a
