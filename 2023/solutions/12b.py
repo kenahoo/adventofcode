@@ -8,11 +8,9 @@ def parse_line(line, mult=1):
 
 
 @cache
-def matches(text, lengths: tuple):
-    first_len, *more_lens = lengths
-    more_lens = tuple(more_lens)  # Keep it hashable for caching
-
-    pat = re.compile(f'[?#]{{{first_len}}}' + ('[^#]' if more_lens else '[^#]*$'))
+def matches(text, lengths: tuple):  # Keep it hashable for caching
+    first, *more = lengths
+    pat = re.compile(f'[?#]{{{first}}}' + ('[^#]' if more else '[^#]*$'))
 
     # Iterate through possible starting points
     count = 0
@@ -20,7 +18,7 @@ def matches(text, lengths: tuple):
         if text[i] == '.':
             continue
         if re.match(pat, text[i:]):
-            count += matches(text[i + first_len + 1:], more_lens) if more_lens else 1
+            count += matches(text[i + first + 1:], tuple(more)) if more else 1
         if text[i] == '#':
             # Must start a match here
             return count
@@ -32,12 +30,7 @@ def main(file, mult=1):
     with open(file) as fh:
         a = [parse_line(x, mult) for x in fh.readlines()]
 
-    total = 0
-    for text, counts in a:
-        print(f"Starting pattern: {text}   --   {','.join([str(x) for x in counts])}")
-        total += matches(text, counts)
-        print(f"Matches: {matches(text, counts)}")
-    print(total)
+    print(sum(matches(text, counts) for text, counts in a))
 
 
 main('data/12', 5)
