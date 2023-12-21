@@ -10,10 +10,9 @@ class Agent(ABC):
         self.name = name
         self.inputs = []
         self.outputs = []
-        self.tally = {"high": 0, "low": 0}
 
     @abstractmethod
-    def invoke(self, pulse, source: 'Agent'):
+    def run(self, pulse, source: 'Agent'):
         pass
 
     def add_output(self, source: 'Agent'):
@@ -21,18 +20,7 @@ class Agent(ABC):
         source.inputs.append(self)
 
     def send(self, pulse):
-        out = {}
-        for o in self.outputs:
-            self.tally[pulse] += 1
-            out[o.name] = pulse
-        return [self.name, out]
-
-    def null_send(self):
-        return [self.name, {}]
-
-    @abstractmethod
-    def state_str(self):
-        pass
+        return {o.name: pulse for o in self.outputs}
 
 
 class Conjunction(Agent):
@@ -46,19 +34,12 @@ class Conjunction(Agent):
         super().__init__(name)
         self.pulses = {}
 
-    def __str__(self):
-        return ''.join(x[0] for x in self.pulses.values())
-
-    def period(self):
-        return math.lcm([x.period() for x in self.inputs])
-
-    def invoke(self, pulse, source: Agent):
+    def run(self, pulse, source: Agent):
         self.pulses[source.name] = pulse
-        send = "low" if all(self.pulses.get(x.name, "low") == "high" for x in self.inputs) else "high"
-        return self.send(send)
+        return self.send("low" if self.all_high() else "high")
 
-    def state_str(self):
-        return f"C{self.pulses}"
+    def all_high(self):
+        return all(self.pulses.get(x.name, "low") == "high" for x in self.inputs)
 
 
 class FlipFlop(Agent):
@@ -71,12 +52,9 @@ class FlipFlop(Agent):
         super().__init__(name)
         self.state = "off"
 
-    def period(self):
-        return 2
-
-    def invoke(self, pulse, source):
+    def run(self, pulse, source):
         if pulse == "high":
-            return self.null_send()
+            return {}
         if self.state == "off":
             self.state = "on"
             return self.send("high")
@@ -84,24 +62,14 @@ class FlipFlop(Agent):
             self.state = "off"
             return self.send("low")
 
-    def state_str(self):
-        return f"F{self.state}"
-
 
 class Broadcast(Agent):
     """
     There is a single broadcast module (named broadcaster). When it receives a pulse, it sends the same pulse to all
     of its destination modules.
     """
-    def invoke(self, pulse, source: Agent):
+    def run(self, pulse, source: Agent):
         return self.send(pulse)
-
-    def state_str(self):
-        return f"B"
-
-
-def total_state(agents):
-    return ', '.join(x.state_str() for x in agents.values())
 
 
 def main(file):
@@ -124,26 +92,22 @@ def main(file):
         agents['button'] = Broadcast('button')
         agents['button'].add_output(agents['broadcaster'])
 
+    periods = {}
+    watch = ['rc', 'gv', 'qf', 'll']  # The four central conjunctionators, spotted using GraphViz
     i = 1
     while True:
         stack = [['button', {'broadcaster': 'low'}]]
-        agents['button'].tally['low'] += 1
         while stack:
             from_a, recipients = stack.pop(0)
             for to_a, pulse in recipients.items():
-                stack.append(agents[to_a].invoke(pulse, agents[from_a]))
-                # if to_a == 'rc':
-                    # print(f"rc = {agents[to_a]} at tick ({agents['button'].tally['low']})")
-        # print(f"rc = {agents['rc']} at tick ({agents['button'].tally['low']})")
-        for n in 'rc', 'gv', 'qf', 'll':
-            if str(agents[n]) == 'h' * len(agents[n].inputs):
-                print(f"Period of {n} is {i}")
-        # print(str(agents['rc']) == str(agents['gv']) == str(agents['qf']) == str(agents['ll']))
+                stack.append([to_a, agents[to_a].run(pulse, agents[from_a])])
+                if to_a in watch and to_a not in periods and agents[to_a].all_high():
+                    periods[to_a] = i
+                    print(f"{to_a} period is {i}")
+                if len(periods) == len(watch):
+                    print(f"lcm = {math.lcm(*periods.values())}")
+                    exit(7)
         i += 1
-
-    highs = sum(x.tally['high'] for x in agents.values())
-    lows = sum(x.tally['low'] for x in agents.values())
-    print(f"{highs} * {lows} = {highs * lows}")
 
 
 main('data/20')
