@@ -12,12 +12,11 @@ function load(file)
 end
 
 rotate!(dir::Vector{Int}) = dir[1:2] = [0 1; -1 0] * dir
+inbounds(d, pos) = 1 ≤ pos[1] ≤ size(d)[1] && 1 ≤ pos[2] ≤ size(d)[2]
 
 function iterate(d, s::State)
     newpos = s.pos + s.dir
-    if !(1 ≤ newpos[1] ≤ size(d)[1] || 1 ≤ newpos[3] ≤ size(d)[2])  # Out
-        return false
-    end
+    inbounds(d, newpos) || return false  # Rat has escaped
     if d[newpos...] == '#'
         rotate!(s.dir)
         return true
